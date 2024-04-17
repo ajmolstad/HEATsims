@@ -1,0 +1,185 @@
+---
+title: "HEAT Example Application"
+author: ""
+date: "2024-03-15"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this document, we demonstrate how to use the provided software to implement HEAT. Note that this version of our software only allows for $J = 2$: a generalization of this software is forthcoming. 
+
+Let us begin by generating some data. Following the manuscript, there are two populations labeled AA and EA. Below, we generate data exactly as in the simulation studies, except the predictors are generated from a normal distribution. 
+```{r, block1, cache=TRUE}
+set.seed(5)
+p <- 200
+n <- 500
+SigmaEA <- matrix(0, nrow=p, ncol=p)
+SigmaAA <- matrix(0, nrow=p, ncol=p)
+for (jj in 1:p) {
+  for (kk in 1:p) {
+    SigmaEA[jj,kk] <- 0.9^abs(jj-kk)
+    SigmaAA[jj,kk] <- 0.5^abs(jj-kk)
+  }
+}
+eoEA <- eigen(SigmaEA)
+SigmaEAsqrt <- eoEA$vec%*%diag(eoEA$val^0.5)%*%t(eoEA$vec)
+eoAA <- eigen(SigmaAA)
+SigmaAAsqrt <- eoAA$vec%*%diag(eoAA$val^0.5)%*%t(eoAA$vec)
+SNP.AA <- matrix(rnorm(n*p), nrow=n, ncol=p)%*%SigmaAAsqrt
+SNP.EA <- matrix(rnorm(n*p), nrow=n, ncol=p)%*%SigmaEAsqrt
+
+R2 <- 0.5
+Prop_pQTLsShared <- 0.95
+sigmaDiff <- 3
+s <- 10
+aa.sd <- apply(SNP.AA, 2, sd)
+ea.sd <- apply(SNP.EA, 2, sd)
+beta.AA <- rep(0, p)
+preds <- sample(1:p, s)
+beta.AA[preds] <- aa.sd[preds]
+beta.EA <- rep(0, p)
+preds2 <- sample(preds, s*Prop_pQTLsShared)
+beta.EA[preds2] <- ea.sd[preds2]
+if(Prop_pQTLsShared < 1){
+  preds3 <- sample(c(1:p)[-preds2], s - s*Prop_pQTLsShared)
+  beta.EA[preds3] <- ea.sd[preds3]
+}
+beta.EA[which(ea.sd == 0)] <- 0
+sign.vec.AA <- sample(c(1, -1), p, replace=TRUE, prob = c(0.8, 0.2))
+sign.vec.EA <- sample(c(1, -1), p, replace=TRUE, prob = c(0.8, 0.2))
+beta.AA <- beta.AA*sign.vec.AA
+beta.EA <- beta.EA*sign.vec.EA 
+
+
+sigma <- sd(SNP.EA%*%beta.EA)
+b0.AA <- -mean(SNP.AA%*%beta.AA)
+prot.AA <- b0.AA + SNP.AA%*%beta.AA + rnorm(n, sd = sigma*sigmaDiff)
+b0.EA <- -mean(SNP.EA%*%beta.EA)
+prot.EA <- b0.EA + SNP.EA%*%beta.EA + rnorm(n, sd = sigma)
+```
+In order to run the HEAT algorithm we need to source the R functions. 
+```{r, block2, echo = FALSE, cache=TRUE}
+source("/Users/amolstad/Desktop/HEATsims/Functions/penMLE_cvL.R")
+source("/Users/amolstad/Desktop/HEATsims/Functions/penMLE_fixedRhos_cvL.R")
+```
+```{r, block3, eval = FALSE, cache=TRUE}
+source("~/HEATsims/Functions/penMLE_cvL.R")
+source("~/HEATsims/Functions/penMLE_fixedRhos_cvL.R")
+```
+
+## Exact version of HEAT
+Now, we run the full version of HEAT using the function \texttt{penMLE\_CV} based on five-fold cross-validation. This will take a few minutem, so please exercise patience.  
+```{r, cache=TRUE}
+# define folds for reproducibility
+nfolds <- 5
+fold.id.AA <- sample(rep(nfolds:1, length=length(prot.AA)))
+fold.id.EA <- sample(rep(nfolds:1, length=length(prot.EA)))
+
+# fit the model and perform cross-validation
+t0 <- penMLE_CV(prot.AA = prot.AA, # protein expression for AA
+                  prot.EA = prot.EA, # protein expression for EA
+                  X.AA = SNP.AA, # design matrix for AA
+                  X.EA = SNP.EA, # design matrix for EA
+                  nlambda = 10, # number of candidate lambda
+                  delta = 0.05, # ratio of largest to smallest lambda
+                  ngamma = 10, # number of candidate gamma 
+                  nfolds = nfolds, 
+                  fold.id.AA = fold.id.AA, 
+                  fold.id.EA = fold.id.EA)
+```
+Now, we can look at the output. 
+```{r, cache=TRUE}
+str(t0)
+```
+In the above output \texttt{phiA} and \texttt{phiE} are the estimated $\theta_{\rm (AA)}$ and $\theta_{\rm (EA)}$, respectively at different tuning parameter pairs. However, note that these are on scale of the standardized predictors: see, e.g., lines 101 and 103 in "penMLE\_cvL.R". 
+
+Since we just performed cross-validation, we can now determine which tuning parameter pair minimized the cross-validation error. What metric to use for cross-validation is context dependent. Here, we look at the total sum of squared residuals over both populations. 
+```{r, cache=TRUE}
+errs <- apply(t0$errs.AA + t0$errs.EA, c(1,2), sum)
+```
+Now, let us extract the estimated $\beta_{\rm (AA)}$ and $\beta_{\rm (EA)}$. 
+```{r, cache=TRUE}
+inds <- which(errs == min(errs), arr.ind=TRUE)
+getInd <- inds[1,2]
+full.fit <- t0$full.fit[[inds[1,1]]]
+full.sd <- apply(rbind(SNP.AA, SNP.EA), 2, sd)
+
+hat.beta.AA <- (full.fit$phiA[,getInd]/full.sd)/full.fit$rhoA[getInd]
+hat.beta.EA <- (full.fit$phiE[,getInd]/full.sd)/full.fit$rhoE[getInd]
+```
+Next, we can check the estimation accuracy. 
+```{r, cache=TRUE}
+sum((hat.beta.AA - beta.AA)^2)
+sum((hat.beta.EA - beta.EA)^2)
+```
+Now, let's compare this to using the lasso estimator for each population on its own, then both populations aggregated. 
+```{r, cache=TRUE}
+library(glmnet)
+fit.AA <- cv.glmnet(y = prot.AA, x = SNP.AA)
+hat.beta.AA.lasso <- coef(fit.AA, s = fit.AA$lambda.min)[-1]
+fit.EA <- cv.glmnet(y = prot.EA, x = SNP.EA)
+hat.beta.EA.lasso <- coef(fit.EA, s = fit.EA$lambda.min)[-1]
+sum((hat.beta.AA.lasso - beta.AA)^2)
+sum((hat.beta.EA.lasso - beta.EA)^2)
+
+
+fit.full <- cv.glmnet(y = rbind(prot.EA, prot.AA), x = rbind(cbind(1, SNP.EA), cbind(0, SNP.AA)),  penalty.factor = c(0, rep(1, dim(SNP.EA)[2])))
+hat.beta.lasso <- coef(fit.full, s = fit.full$lambda.min)[-c(1,2)]
+sum((hat.beta.lasso - beta.AA)^2)
+sum((hat.beta.lasso - beta.EA)^2)
+
+```
+
+We could alternatively use the validation likelihood error. This is denoted by \texttt{L.errs.AA} and \texttt{L.errs.EA} in the software. 
+```{r, cache=TRUE}
+errs <- apply(t0$L.errs.AA + t0$L.errs.EA, c(1,2), sum)
+inds <- which(errs == min(errs), arr.ind=TRUE)
+getInd <- inds[1,2]
+full.fit <- t0$full.fit[[inds[1,1]]]
+hat.beta.AA <- (full.fit$phiA[,getInd]/full.sd)/full.fit$rhoA[getInd]
+hat.beta.EA <- (full.fit$phiE[,getInd]/full.sd)/full.fit$rhoE[getInd]
+sum((hat.beta.AA - beta.AA)^2)
+sum((hat.beta.EA - beta.EA)^2)
+```
+One could also use error isolated to each population (AA or EA), though we do not recommend this. 
+
+
+## Approximate version of HEAT
+Now, we show how to implement the approximation version of HEAT. This will require using the \texttt{natural} package in R.
+```{r, cache=TRUE}
+library(natural)
+sigma.AA.est <- nlasso_cv(x = SNP.AA, y = prot.AA, nfold=5)$sig_obj
+sigma.EA.est <- nlasso_cv(x = SNP.EA, y = prot.EA, nfold=5)$sig_obj
+
+t1 <- penMLE_fixedrhos_CV(prot.AA = prot.AA, 
+                             prot.EA = prot.EA, 
+                             X.AA = SNP.AA, 
+                             X.EA = SNP.EA, 
+                             nlambda = 10, 
+                             delta = 0.05, 
+                             ngamma = 10,
+                             nfolds = nfolds, 
+                             fold.id.AA = fold.id.AA, 
+                             fold.id.EA = fold.id.EA, 
+                             rhoA = 1/sigma.AA.est, 
+                             rhoE = 1/sigma.EA.est)
+
+errs <- apply(t1$errs.AA + t1$errs.EA, c(1,2), sum)
+getInd <- inds[1,2]
+full.fit <- t1$full.fit[[inds[1,1]]]
+full.sd <- apply(rbind(SNP.AA, SNP.EA), 2, sd)
+hat.beta.AA.app <- (full.fit$phiA[,getInd]/full.sd)*sigma.AA.est
+hat.beta.EA.app <- (full.fit$phiE[,getInd]/full.sd)*sigma.EA.est
+sum((hat.beta.AA.app - beta.AA)^2)
+sum((hat.beta.EA.app - beta.EA)^2)
+```
+We see this performs similar to the full version while requiring less computing time. 
+
+
+
