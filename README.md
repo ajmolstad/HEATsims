@@ -20,4 +20,4 @@ SNP.EA <- matrix(rnorm(nEA*p), nrow = nEA) %*% eo.EA$vec %*% diag(eo.EA$val^0.5)
 ```
 
 ## Implementing HEAT 
-For users simply wanting to implement HEAT, we recommend looking at the example provided. At present, the software works with $J = 2$ populations. Please check back for updates after publication. 
+For users simply wanting to implement HEAT, we recommend following the example provided in the ```Example.rmd``` file. At present, the software works with $J = 2$ populations. Please check back for updates after publication. 
