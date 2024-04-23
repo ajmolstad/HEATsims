@@ -1,5 +1,5 @@
 # HEATsims
-This repository includes code to reproduce simulation studies from ["Heterogeneity-aware integrative analyses for ancestry-specific association studies"](https://arxiv.org/abs/2306.05571).
+This repository includes code to reproduce simulation studies from ["Heterogeneity-aware integrative regression for ancestry-specific association studies"](https://arxiv.org/abs/2306.05571).
 
 ## Simulation studies 
 The simulation studies are designed to be performed on a high-performance computing cluster using slurm. To run the simulations, one needs to create a directory with all the files and directory included in this repository, then execute ```Run_Simulations.sh```. This will initiate 2000 jobs: each performs one replicate of the simulation study by running the ```Protein9_Main.R``` script with a distinct set of model settings and seeds. 
