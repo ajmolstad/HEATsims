@@ -1,6 +1,6 @@
-# ------------------------------
-# Main workhorse function
-# ------------------------------
+# ------------------------------------------------------------------------
+# Main function: fits penalized MLE for fixed pair of tuning parameters
+# ------------------------------------------------------------------------
 penMLE <- function(prot.AA, prot.EA, X.AA, X.EA, phiA, 
                            phiE, rhoA, rhoE, lambda, gamma, alpha0, w){
   
@@ -59,7 +59,6 @@ penMLE <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
       tempLik <- fFunction(prot.AA, prot.EA, crossprod(t(X.AA), phi.temp[,1]), crossprod(t(X.EA), phi.temp[,2]), rhoA, rhoE)
       tempOld <- (tempPrev + sum(tempGrad*(phi.temp - cbind(phiA, phiE))) + (1/(2*alpha))*sum((phi.temp - cbind(phiA, phiE))^2))
       check <- (tempLik <= tempOld)
-      # cat(tempLik, ":", tempOld, alpha, "\n")
       if(check){
         phiAprev <- phiA
         phiEprev <- phiE
@@ -67,7 +66,6 @@ penMLE <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
         phiE <- phi.temp[,2]
         linesearch <- FALSE
       } else {
-        # cat("update step", "\n")
         alpha <- alpha*0.5
       }
     }
@@ -75,7 +73,6 @@ penMLE <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
     
     tempLik.adj <- tempLik - 2*length(prot.AA)*log(rhoA)/n - 2*length(prot.EA)*log(rhoE)/n
     obj.new <- tempLik.adj + lambda*sum(w*sqrt(rowSums(cbind(phiA, phiE)^2))) + gamma*(sum(abs(phiA)) + sum(abs(phiE)))
-    # cat(obj.new, "\n")
     if(k > 5){
       if(abs(obj.new - obj.prev) < 1e-8*abs(obj.prev)){
         break
@@ -90,7 +87,9 @@ penMLE <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
               "rhoE" = rhoE))
 }
 
-
+# ------------------------------------------------------------------------
+# Fits penalized MLE solution path
+# ------------------------------------------------------------------------
 penMLE_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, 
                                 prot.AA.test = NULL, prot.EA.test = NULL, 
                                 X.AA.test = NULL, X.EA.test = NULL, w){
@@ -101,12 +100,9 @@ penMLE_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma,
   X.AA.stand <- (X.AA - rep(1, dim(X.AA)[1])%*%t(apply(X.AA, 2, mean)))/(rep(1, dim(X.AA)[1])%*%t(full.sd))
   EA.sd <- apply(X.EA, 2, sd)
   X.EA.stand <- (X.EA - rep(1, dim(X.EA)[1])%*%t(apply(X.EA, 2, mean)))/(rep(1, dim(X.EA)[1])%*%t(full.sd))
-  #w <- rep(sqrt(2), dim(X.EA)[2])
   if(any(EA.sd == 0)){
     X.EA.stand[,which(EA.sd == 0)] <- 0
-    #w[which(EA.sd == 0)] <- sqrt(1)
   }                                                                 
-  #w <- w/max(w)
   phiA <- matrix(0, nrow=dim(X.AA)[2], ncol=length(gamma))
   phiE <- matrix(0, nrow=dim(X.AA)[2], ncol=length(gamma))
   rhoA <- rep(0, length(gamma))
@@ -130,7 +126,6 @@ penMLE_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma,
       rhoE.temp <- fit.temp$rhoE
       phiA.temp <- fit.temp$phiA
       phiE.temp <- fit.temp$phiE
-      # cat(kk, "\n")
     }
   }
 
@@ -153,7 +148,6 @@ penMLE_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma,
         fit.temp <- penMLE(prot.AA.stand, prot.EA.stand, X.AA.stand, X.EA.stand, 
                                    phiA = phiA.temp, phiE = phiE.temp, rhoA = rhoA.temp, rhoE = rhoE.temp,
                                    lambda = lambda, gamma = gamma[kk], alpha0=alpha0, w=w)
-        # cat(kk, "\n")
         phiA[,kk] <- fit.temp$phiA
         phiE[,kk] <- fit.temp$phiE
         rhoA[kk] <- fit.temp$rhoA
@@ -182,7 +176,9 @@ penMLE_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma,
   
 }
 
-
+# ------------------------------------------------------------------------
+# Performs cross-validation 
+# ------------------------------------------------------------------------
 penMLE_CV <- function(prot.AA, prot.EA, X.AA, X.EA, delta = 0.1, nlambda = 10, 
                               ngamma = 20, nfolds = 5, fold.id.AA, fold.id.EA){
   
@@ -225,11 +221,6 @@ penMLE_CV <- function(prot.AA, prot.EA, X.AA, X.EA, delta = 0.1, nlambda = 10,
     gamma.mat[,ll] <- 10^seq(log10(gamma.try[kk]), log10(10^(-5)*gamma.try[kk]), length=ngamma)
   }
   
-  # if(is.null(fold.id.AA)){
-  #   fold.id.AA <- sample(rep(nfolds:1, length=length(prot.AA)))
-  #   fold.id.EA <- sample(rep(nfolds:1, length=length(prot.EA)))
-  # }
-  
   if(!is.null(nfolds)){
 
     errs.AA <- array(0, dim=c(nlambda, ngamma, nfolds))
@@ -248,12 +239,11 @@ penMLE_CV <- function(prot.AA, prot.EA, X.AA, X.EA, delta = 0.1, nlambda = 10,
                                       prot.EA[which(fold.id.EA == kk)], 
                                       X.AA[which(fold.id.AA == kk),], 
                                       X.EA[which(fold.id.EA == kk),], w=w)
-        errs.AA[ll,which(t0[ll,]!=Inf),kk] <- cv.fit$err.AA#/sum((prot.AA[which(fold.id.AA == kk)] - mean(prot.AA[-which(fold.id.AA == kk)]))^2)
-        errs.EA[ll,which(t0[ll,]!=Inf),kk] <- cv.fit$err.EA#/sum((prot.EA[which(fold.id.EA == kk)] - mean(prot.AA[-which(fold.id.EA == kk)]))^2)
-        L.errs.AA[ll,which(t0[ll,]!=Inf),kk] <- cv.fit$L.err.AA#/sum((prot.AA[which(fold.id.AA == kk)] - mean(prot.AA[-which(fold.id.AA == kk)]))^2)
+        errs.AA[ll,which(t0[ll,]!=Inf),kk] <- cv.fit$err.AA
+        errs.EA[ll,which(t0[ll,]!=Inf),kk] <- cv.fit$err.EA
+        L.errs.AA[ll,which(t0[ll,]!=Inf),kk] <- cv.fit$L.err.AA
         L.errs.EA[ll,which(t0[ll,]!=Inf),kk] <- cv.fit$L.err.EA
         t0 <- apply(errs.AA, c(1,2), sum) + apply(errs.EA, c(1,2), sum)
-        #cat(ll, "\n")
       }
       cat("Through fold ", kk, "\n")
     }
