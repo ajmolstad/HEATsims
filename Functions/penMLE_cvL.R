@@ -87,12 +87,14 @@ penMLE <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
               "rhoE" = rhoE))
 }
 
-# ------------------------------------------------------------------------
-# Fits penalized MLE solution path
-# ------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# Function for fitting the entire solution path
+# stop.index is the number of tuning parameters that must be computed along the path
+# if CV errors are decreasing for many consecutive iterations, we terminate
+# ------------------------------------------------------------------------------------
 penMLE_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, 
                                 prot.AA.test = NULL, prot.EA.test = NULL, 
-                                X.AA.test = NULL, X.EA.test = NULL, w){
+                                X.AA.test = NULL, X.EA.test = NULL, w, stop.index = 5){
   
   prot.AA.stand <- prot.AA - mean(prot.AA)
   prot.EA.stand <- prot.EA - mean(prot.EA)
@@ -160,8 +162,8 @@ penMLE_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma,
         err.EA[kk] <- sum((prot.EA.test - mean(prot.EA) - X.EA.test.stand%*%phiE[,kk]/rhoE[kk])^2)
         L.err.AA[kk] <- sum((prot.AA.test - mean(prot.AA) - X.AA.test.stand%*%phiA[,kk]/rhoA[kk])^2)*(rhoA[kk]^2) - length(prot.AA.test)*log(rhoA[kk]^2)
         L.err.EA[kk] <- sum((prot.EA.test - mean(prot.EA) - X.EA.test.stand%*%phiE[,kk]/rhoE[kk])^2)*(rhoE[kk]^2) - length(prot.EA.test)*log(rhoE[kk]^2)
-        if(kk > 5){
-          if(all(err.AA[kk:(kk-4)] > err.AA[(kk-1):(kk-5)]) & all(err.EA[kk:(kk-4)] > err.EA[(kk-1):(kk-5)])){
+        if(kk > stop.index){
+          if(all(err.AA[kk:(kk-stop.index-1)] > err.AA[(kk-1):(kk-stop.index)]) & all(err.EA[kk:(kk-stop.index-1)] > err.EA[(kk-1):(kk-stop.index)])){
             break
           }
         }
