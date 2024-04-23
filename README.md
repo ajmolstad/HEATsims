@@ -1,6 +1,8 @@
 # HEATsims
 This repository includes code to reproduce simulation studies from "Heterogeneity-aware integrative analyses for ancestry-specific association studies". 
 
+The simulation studies are designed to be performed on a high-performance computing cluster using slurm. To run the simulations, one needs to create a directory with all the files and directory included in this repository, then execute ```Run_Simulations.sh```. This will initiate 2000 jobs: each performs one replicate of the simulation study by running the ```Protein9_Main.R``` script with a distinct set of model settings and seeds. 
+
 To exactly recreate our results, one would need access to the WHI SNP genotype data (e.g., through dbGaP). For users with access to these data, please email the first author who can provide specific instructions for creating the SNP matrix used in the simulation studies. For those wanting to perform related simulation studies, one need only comment out line 47 - 89 of "Protein9_Main.R" and create two SNP matrices ``SNP.AA`` and ``SNP.EA``. For example
 ```
 nAA <- 450; nEA <- 900; p <- 500
