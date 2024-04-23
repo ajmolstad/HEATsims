@@ -1,2 +1,18 @@
 # HEATsims
-Code to reproduce simulation studies from "Heterogeneity-aware integrative analyses for ancestry-specific association studies". 
+This repository includes code to reproduce simulation studies from "Heterogeneity-aware integrative analyses for ancestry-specific association studies". 
+
+To exactly recreate our results, one would need access to the WHI SNP genotype data (e.g., through dbGaP). For users with access to these data, please email the first author who can provide specific instructions for creating the SNP matrix used in the simulation studies. For those wanting to perform related simulation studies, one need only comment out line 47 - 89 of "Protein9_Main.R" and create two SNP matrices ``SNP.AA`` and ``SNP.EA``. For example
+```
+nAA <- 450; nEA <- 900; p <- 500
+Sigma.AA <- matrix(0, nrow=p, ncol=p)
+Sigma.EA <- matrix(0, nrow=p, ncol=p)
+for (kk in 1:p) {
+  for (jj in 1:p) {
+    Sigma.AA[kk,jj] <- 0.5^abs(jj-kk); Sigma.EA[kk,jj] <- 0.95^abs(jj-kk)
+  }
+}
+eo.AA <- eigen(Sigma.AA); eo.EA <- eigen(Sigma.EA)
+SNP.AA <- matrix(rnorm(nAA*p), nrow = nAA) %*% eo.AA$vec %*% diag(eo.AA$vals^0.5) %*% t(eo.AA$vec)
+SNP.EA <- matrix(rnorm(nEA*p), nrow = nEA) %*% eo.EA$vec %*% diag(eo.EA$vals^0.5) %*% t(eo.EA$vec)
+```
+For users simply wanting to implement HEAT, we recommend looking at the example provided. At present, the software works with $J = 2$ populations. Please check back for updates after publication. 
