@@ -1,7 +1,6 @@
-# ------------------------------
-# loose algorithm
-# -----------------------------
-
+# ------------------------------------------------------------------------------------
+# Main function: fits penalized MLE with rhos fixed for fixed tuning parameter pair
+# ------------------------------------------------------------------------------------
 penMLE_fixedrhos <- function(prot.AA, prot.EA, X.AA, X.EA, phiA, 
                            phiE, rhoA, rhoE, lambda, gamma, alpha0, w){
   
@@ -43,10 +42,8 @@ penMLE_fixedrhos <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
     
     inputs <- which(phiA!=0)
     t1 <- crossprod(t(X.AA[,inputs]),phiA[inputs])
-    #rhoA <- c((crossprod(prot.AA, t1) + sqrt(crossprod(prot.AA, t1)^2 + 4*sum(prot.AA^2)*length(prot.AA)))/(2*sum(prot.AA^2)))
     inputs <- which(phiE!=0)
     t2 <- crossprod(t(X.EA[,inputs]),phiE[inputs])
-    #rhoE <- c((crossprod(prot.EA, t2) + sqrt(crossprod(prot.EA, t2)^2 + 4*sum(prot.EA^2)*length(prot.EA)))/(2*sum(prot.EA^2)))
 
     tempGrad <-  gradFunction(prot.AA, prot.EA, X.AA, X.EA, t1, t2, rhoA, rhoE)
     linesearch <- TRUE
@@ -59,7 +56,6 @@ penMLE_fixedrhos <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
       tempLik <- fFunction(prot.AA, prot.EA, crossprod(t(X.AA), phi.temp[,1]), crossprod(t(X.EA), phi.temp[,2]), rhoA, rhoE)
       tempOld <- (tempPrev + sum(tempGrad*(phi.temp - cbind(phiA, phiE))) + (1/(2*alpha))*sum((phi.temp - cbind(phiA, phiE))^2))
       t1 <- (tempLik <= tempOld)
-      #cat(tempLik, ":", tempOld, alpha, "\n")
       if(t1){
         phiAprev <- phiA
         phiEprev <- phiE
@@ -73,7 +69,6 @@ penMLE_fixedrhos <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
     
     tempLik.adj <- tempLik - 2*length(prot.AA)*log(rhoA)/n - 2*length(prot.EA)*log(rhoE)/n
     obj.new <- tempLik.adj + lambda*sum(w*sqrt(rowSums(cbind(phiA, phiE)^2))) + gamma*(sum(abs(phiA)) + sum(abs(phiE)))
-    #cat(obj.new, "\n")
     if(k > 5){
       if(abs(obj.new - obj.prev) < 1e-8*abs(obj.prev)){
         break
@@ -88,10 +83,14 @@ penMLE_fixedrhos <- function(prot.AA, prot.EA, X.AA, X.EA, phiA,
               "rhoE" = rhoE))
 }
 
-
+# ----------------------------------------------------------------------------------
+# Function for fitting the entire solution path
+# stop.index is the number of tuning parameters that must be computed along the path
+# if CV errors are decreasing for many consecutive iterations, we terminate
+# ------------------------------------------------------------------------------------
 penMLE_fixedrhos_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, rhoA, rhoE,
                                 prot.AA.test = NULL, prot.EA.test = NULL, 
-                                X.AA.test = NULL, X.EA.test = NULL, w){
+                                X.AA.test = NULL, X.EA.test = NULL, w, stop.index = 7){
   
   prot.AA.stand <- prot.AA - mean(prot.AA)
   prot.EA.stand <- prot.EA - mean(prot.EA)
@@ -105,10 +104,6 @@ penMLE_fixedrhos_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, r
   
   phiA <- matrix(0, nrow=dim(X.AA)[2], ncol=length(gamma))
   phiE <- matrix(0, nrow=dim(X.AA)[2], ncol=length(gamma))
-  #rhoA <- rep(0, length(gamma))
-  #rhoE <- rep(0, length(gamma))
-  #rhoA.temp <- 1/sd(prot.AA.stand)
-  #rhoE.temp <- 1/sd(prot.EA.stand)
   phiA.temp <- phiA[,1]
   phiE.temp <- phiE[,1]
   
@@ -116,12 +111,11 @@ penMLE_fixedrhos_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, r
     for(kk in 1:length(gamma)){
       fit.temp <- penMLE_fixedrhos(prot.AA.stand, prot.EA.stand, X.AA.stand, X.EA.stand, 
                                  phiA = phiA.temp, phiE = phiE.temp, rhoA = rhoA, rhoE = rhoE,
-                                 lambda = lambda, gamma = gamma[kk], alpha0=NULL, w = w)
+                                 lambda = lambda, gamma = gamma[kk], alpha0 = NULL, w = w)
       phiA[,kk] <- fit.temp$phiA
       phiE[,kk] <- fit.temp$phiE
       phiA.temp <- fit.temp$phiA
       phiE.temp <- fit.temp$phiE
-      # cat(kk, "\n")
     }
   }
 
@@ -144,7 +138,6 @@ penMLE_fixedrhos_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, r
         fit.temp <- penMLE_fixedrhos(prot.AA.stand, prot.EA.stand, X.AA.stand, X.EA.stand, 
                                    phiA = phiA.temp, phiE = phiE.temp, rhoA = rhoA, rhoE = rhoE,
                                    lambda = lambda, gamma = gamma[kk], alpha0=alpha0, w=w)
-        # cat(kk, "\n")
         phiA[,kk] <- fit.temp$phiA
         phiE[,kk] <- fit.temp$phiE
         phiA.temp <- fit.temp$phiA
@@ -153,9 +146,9 @@ penMLE_fixedrhos_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, r
         err.EA[kk] <- sum((prot.EA.test  - mean(prot.EA) - X.EA.test.stand%*%phiE[,kk]/rhoE)^2)
         L.err.AA[kk] <- err.AA[kk]*(rhoA^2) - length(prot.AA.test)*log(rhoA^2)
         L.err.EA[kk] <- err.EA[kk]*(rhoE^2) - length(prot.EA.test)*log(rhoE^2)
-        if(kk > 7){
-          if(all(err.AA[kk:(kk-6)] > err.AA[(kk-1):(kk-7)]) & all(err.EA[kk:(kk-6)] > err.EA[(kk-1):(kk-7)]) &
-            all(L.err.AA[kk:(kk-6)] > L.err.AA[(kk-1):(kk-7)]) & all(L.err.EA[kk:(kk-6)] > L.err.EA[(kk-1):(kk-7)])){
+        if(kk > stop.index){
+          if(all(err.AA[kk:(kk-stop.index-1)] > err.AA[(kk-1):(kk-stop.index)]) & all(err.EA[kk:(kk-stop.index-1)] > err.EA[(kk-1):(kk-stop.index)]) &
+            all(L.err.AA[kk:(kk-stop.index-1)] > L.err.AA[(kk-1):(kk-stop.index)]) & all(L.err.EA[kk:(kk-stop.index-1)] > L.err.EA[(kk-1):(kk-stop.index)])){
             break
           }
         }
@@ -170,6 +163,9 @@ penMLE_fixedrhos_path <- function(prot.AA, prot.EA, X.AA, X.EA, lambda, gamma, r
   
 }
 
+# --------------------------------------------
+#
+# -------------------------------------------
 
 penMLE_fixedrhos_CV <- function(prot.AA, prot.EA, X.AA, X.EA, delta = 0.1, nlambda = 10, 
                               ngamma = 20, nfolds = 5, fold.id.AA, fold.id.EA,
@@ -216,11 +212,6 @@ penMLE_fixedrhos_CV <- function(prot.AA, prot.EA, X.AA, X.EA, delta = 0.1, nlamb
     gamma.mat[,ll] <- 10^seq(log10(gamma.try[kk]), log10(10^(-5)*gamma.try[kk]), length=ngamma)
   }
   
-  # if(is.null(fold.id.AA)){
-  #   fold.id.AA <- sample(rep(nfolds:1, length=length(prot.AA)))
-  #   fold.id.EA <- sample(rep(nfolds:1, length=length(prot.EA)))
-  # }
-  
  if(!is.null(nfolds)){
 
     errs.AA <- array(0, dim=c(nlambda, ngamma, nfolds))
@@ -241,11 +232,10 @@ penMLE_fixedrhos_CV <- function(prot.AA, prot.EA, X.AA, X.EA, delta = 0.1, nlamb
                                       X.EA.test = X.EA[which(fold.id.EA == kk),],
                                       rhoA = rhoA,
                                       rhoE = rhoE, w=w)
-        errs.AA[ll,,kk] <- cv.fit$err.AA#/sum((prot.AA[which(fold.id.AA == kk)] - mean(prot.AA[-which(fold.id.AA == kk)]))^2)
-        errs.EA[ll,,kk] <- cv.fit$err.EA#/sum((prot.EA[which(fold.id.EA == kk)] - mean(prot.AA[-which(fold.id.EA == kk)]))^2)
-        L.errs.AA[ll,,kk] <- cv.fit$L.err.AA#/sum((prot.AA[which(fold.id.AA == kk)] - mean(prot.AA[-which(fold.id.AA == kk)]))^2)
+        errs.AA[ll,,kk] <- cv.fit$err.AA
+        errs.EA[ll,,kk] <- cv.fit$err.EA
+        L.errs.AA[ll,,kk] <- cv.fit$L.err.AA
         L.errs.EA[ll,,kk] <- cv.fit$L.err.EA
-        # cat(ll, "\n")
       }
       cat("Through fold ", kk, "\n")
     }
