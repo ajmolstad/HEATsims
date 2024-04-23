@@ -74,7 +74,7 @@ source("~/HEATsims/Functions/penMLE_fixedRhos_cvL.R")
 ```
 
 ## Exact version of HEAT
-Now, we run the full version of HEAT using the function \texttt{penMLE\_CV} based on five-fold cross-validation. This will take a few minutem, so please exercise patience.  
+Now, we run the full version of HEAT using the function \texttt{penMLE\_CV} based on five-fold cross-validation. This will take a few minutes, so please exercise patience.  
 ```{r, cache=TRUE}
 # define folds for reproducibility
 nfolds <- 5
@@ -103,7 +103,7 @@ Since we just performed cross-validation, we can now determine which tuning para
 ```{r, cache=TRUE}
 errs <- apply(t0$errs.AA + t0$errs.EA, c(1,2), sum)
 ```
-Now, let us extract the estimated $\beta_{\rm (AA)}$ and $\beta_{\rm (EA)}$. 
+Now, let us extract the estimated $\beta_{\rm (AA)}$ and $\beta_{\rm (EA)}$. To do so, we get coefficients back to the original scale. 
 ```{r, cache=TRUE}
 inds <- which(errs == min(errs), arr.ind=TRUE)
 getInd <- inds[1,2]
@@ -147,11 +147,11 @@ hat.beta.EA <- (full.fit$phiE[,getInd]/full.sd)/full.fit$rhoE[getInd]
 sum((hat.beta.AA - beta.AA)^2)
 sum((hat.beta.EA - beta.EA)^2)
 ```
-One could also use error isolated to each population (AA or EA), though we do not recommend this. 
+One could also use error isolated to each population (AA or EA), though we do not recommend this. In our experience, this can lead to strange behavior. 
 
 
 ## Approximate version of HEAT
-Now, we show how to implement the approximation version of HEAT. This will require using the \texttt{natural} package in R.
+In this section, we show how to implement the approximation version of HEAT. This will require using the \texttt{natural} package in R.
 ```{r, cache=TRUE}
 library(natural)
 sigma.AA.est <- nlasso_cv(x = SNP.AA, y = prot.AA, nfold=5)$sig_obj
