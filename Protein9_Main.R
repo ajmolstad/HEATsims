@@ -44,7 +44,7 @@ uu <- as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))
 # ------------------------------------
 # Try example here
 # ------------------------------------
-temp <- readRDS("~/blue/pQTL_Sims/Simulations_R1/Protein9/Protein9.RDS")
+temp <- readRDS(paste(path, "Protein9/Protein9.RDS", sep=""))
 SNP.EA <- temp$SNP.EA
 SNP.AA <- temp$SNP.AA
 
