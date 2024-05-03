@@ -2,6 +2,12 @@
 .Rhistory
 .Rapp.history
 
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+
 # Session Data files
 .RData
 .RDataTmp
